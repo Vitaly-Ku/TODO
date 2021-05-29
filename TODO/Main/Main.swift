@@ -13,100 +13,189 @@ class Main {
     
     static let instance = Main()
     
+    var dateFormatter = DateFormatter()
     
     var userSession: UserSession = UserSession()
+    var notificationDate: String?
+    var taskRealmConverter = TaskRealmConverter()
+    var rowBGCcolor: UIColor = .clear
+    var notifID: String?
+    var notifBadgeCount = 0
+    var notificationDateInterval = 0.0
+    let notificationService = NotificationService()
+    var tempCheckList: [CheckMark] = []
+    var state: String? {
+        get {return UserDefaults.standard.string(forKey: "k")}
+        set {UserDefaults.standard.set(newValue, forKey: "k")}
+    }
+    var isCloudsHidden: Bool? {
+        get {return UserDefaults.standard.bool(forKey: "clouds")}
+        set {UserDefaults.standard.set(newValue, forKey: "clouds")}
+    }
+    var transitionSide = "left"
     
-    private init() { }
+    
+
+    private init() {
+        dateFormatter.timeZone = .autoupdatingCurrent
+        dateFormatter.dateFormat = "dd.MM.yyyy, HH:mm"
+    }
     
 }
 
-extension Main: TaskProtocol {
+extension Main: LocalDataBaseService {
     
-    func addSection(section: String) {
-        for item in self.userSession.tasks {
-            if item.sectionName == section {
-                return
+    func addSection(sectionName: String) throws {
+
+        guard userSession.tasks.map(\.sectionName).contains(sectionName) else {
+            //Создание секции в локальном массиве
+            userSession.tasks.append(SectionTask(sectionName: sectionName, tasks: []))
+            
+            //Сохранение секции в базу данных Realm
+            let realm = try Realm()
+            let taskArray = SectionTaskRealm()
+            taskArray.sectionName = sectionName
+            try realm.write {
+                realm.add(taskArray, update: .modified)
             }
-        }
-        self.userSession.tasks.append(TasksStruct(section: section, tasks: []))
-        let realm = try! Realm()
-        let taskArray = TasksStructRealm()
-        taskArray.sectionName = section
-        try! realm.write {
-            realm.add(taskArray, update: Realm.UpdatePolicy.modified)
+            return
         }
     }
     
-    func addTask(section: String, name: String) {
-        let realm = try! Realm()
-        let id = realm.objects(TaskRealm.self).count + 1
-        let date = Date()
-        if realm.objects(TasksStructRealm.self).filter("sectionName = '\(section)'").isEmpty {
-            self.addSection(section: section)
-        }
-        if !self.userSession.tasks.isEmpty {
-            for i in 0..<self.userSession.tasks.count {
-                if self.userSession.tasks[i].sectionName == section {
-                    self.userSession.tasks[i].sectionTasks.append(Task(id: id, name: name, date: date))
-                }
-            }
+    func addTask(sectionName: String, name: String, backgroundColor: UIColor?, taskDescription: String?, notificationDate: String?, checkList: [CheckMark], markSelectedCount: Int) throws -> Task {
+        if !userSession.tasks.map(\.sectionName).contains(sectionName) {
+            try addSection(sectionName: sectionName)
+            let task = try addTask(sectionName: sectionName, name: name, backgroundColor: backgroundColor, taskDescription: taskDescription, notificationDate: notificationDate, checkList: checkList, markSelectedCount: markSelectedCount)
+            return task
         } else {
-            self.userSession.tasks.append(TasksStruct(section: section, tasks: [Task(id: id, name: name, date: date)]))
-        }
-        let taskRealm = TaskRealm()
-        taskRealm.id = id
-        taskRealm.name = name
-        taskRealm.date = date
-        try! realm.write {
-            let tTaskSection = realm.objects(TasksStructRealm.self).filter("sectionName = '\(section)'").first
-            tTaskSection?.sectionTasks.append(taskRealm)
-        }
-        self.getTasksFromRealm()
-    }
-    
-    func getTasksFromRealm() {
-        self.userSession.tasks = []
-        let realm = try! Realm()
-        let tasksArrayRealm = realm.objects(TasksStructRealm.self)
-        if !tasksArrayRealm.isEmpty {
-            for i in 0..<tasksArrayRealm.count {
-                if !tasksArrayRealm[i].sectionTasks.isEmpty {
-                    var tTaskArray = TasksStruct()
-                    tTaskArray.sectionName = tasksArrayRealm[i].value(forKey: "sectionName") as! String
-                    if !tasksArrayRealm[i].sectionTasks.isEmpty {
-                        for j in 0..<tasksArrayRealm[i].sectionTasks.count {
-                            var tTask = Task()
-                            tTask.id = tasksArrayRealm[i].sectionTasks[j].value(forKey: "id") as! Int
-                            tTask.name = tasksArrayRealm[i].sectionTasks[j].value(forKey: "name") as! String
-                            tTask.date = tasksArrayRealm[i].sectionTasks[j].value(forKey: "date") as! Date
-                            tTaskArray.sectionTasks.append(tTask)
-                        }
-                    }
-                    self.userSession.tasks.append(tTaskArray)
+            let realm = try Realm()
+            let id = (realm.objects(TaskRealm.self).sorted(byKeyPath: "id", ascending: false).first?.id ?? 0) + 1
+            let creationDate = Date()
+            let tempNotificationID = notificationDate == "" ? "" : UUID().uuidString
+            let task = Task(id: id, name: name, backgroundColor: backgroundColor, taskDescription: taskDescription, creationDate: creationDate, notificationDate: notificationDate, notificationID: tempNotificationID, checkList: checkList, markSelectedCount: markSelectedCount)
+            //Создание таски в локальном массиве
+            for indexSection in 0..<userSession.tasks.count {
+                if userSession.tasks[indexSection].sectionName == sectionName {
+                    userSession.tasks[indexSection].sectionTasks.append(task)
                 }
             }
+            
+            //Создание таски в базе данных Realm
+            try realm.write {
+                let tTaskRealm = realm.objects(SectionTaskRealm.self).filter("sectionName = '\(sectionName)'").first
+                tTaskRealm?.sectionTasks.append(taskRealmConverter.convert(task))
+            }
+            return task
         }
-        self.userSession.tasks = self.userSession.tasks.sorted()
+    }
+
+    func updateTasksFromRealm() throws {
+        
+        let realm = try Realm()
+        userSession.tasks = []
+        let tasksRealm = realm.objects(SectionTaskRealm.self)
+        for taskRealm in tasksRealm {
+            let section = SectionTask(sectionName: taskRealm.sectionName, tasks: taskRealmConverter.convert(taskRealm.sectionTasks))
+            userSession.tasks.append(section)
+        }
+        userSession.tasks = userSession.tasks.sorted()
     }
     
-    func getCategoriesFromRealm() -> [String] {
-        let realm = try! Realm()
-        let objects = realm.objects(TasksStructRealm.self).sorted(byKeyPath: "sectionName", ascending: true)
-        var categories: [String] = []
-        for item in objects{
-            categories.append(item.value(forKey: "sectionName") as! String)
+    func updateTask(task: Task) throws {
+        let realm = try Realm()
+        
+        let objectRealm = TaskRealm()
+        objectRealm.id = task.id
+        objectRealm.name = task.name
+        objectRealm.backgroundColor = task.backgroundColor?.toString()
+        objectRealm.taskDescription = task.taskDescription
+        objectRealm.creationDate = task.creationDate
+        objectRealm.notificationDate = task.notificationDate
+        objectRealm.markSelectedCount = task.markSelectedCount
+        for checkMark in task.checkList {
+            objectRealm.checkList.append(taskRealmConverter.convert(checkMark))
         }
-        return categories
-    }
-    
-    func deleteTask(indexPathSectionTask: Int, indexPathRowTask: Int) {
-        let realm = try! Realm()
-        let deleteTask = realm.objects(TaskRealm.self).filter("id = \(self.userSession.tasks[indexPathSectionTask].sectionTasks[indexPathRowTask].id)").first
-        try! realm.write {
-            if let delTask = deleteTask {
-                realm.delete(delTask)
+        
+        
+        
+        let notificationDate: Double = dateFormatter.date(from: task.notificationDate ?? "")?.timeIntervalSince1970 ?? 0
+        let interval = notificationDate - Date().timeIntervalSince1970
+        if interval <= 1 {
+            objectRealm.notificationID = task.notificationID
+        } else {
+            if task.notificationDate != "" {
+                objectRealm.notificationID = notificationService.updateNotificationRequest(task: task, notificationIdentifier: task.notificationID!)
             }
         }
-        self.userSession.tasks[indexPathSectionTask].sectionTasks.remove(at: indexPathRowTask)
+        try realm.write {
+            realm.add(objectRealm, update: .modified)
+        }
+    }
+    
+    func getSectionsFromRealm() throws -> [String] {
+        let realm = try Realm()
+        var sections: [String] = []
+        let sectionsTaskRealm = realm.objects(SectionTaskRealm.self).sorted(byKeyPath: "sectionName", ascending: true)
+        for section in sectionsTaskRealm {
+            sections.append(section.sectionName)
+        }
+        return sections
+    }
+    
+//    func deleteTask(indexPathSectionTask: Int, indexPathRowTask: Int) throws {
+//        let realm = try! Realm()
+//        let task = userSession.tasks[indexPathSectionTask].sectionTasks[indexPathRowTask]
+//        let deleteTask = realm.objects(TaskRealm.self).filter("id = \(task.id)").first
+//        try realm.write {
+//            if let delTask = deleteTask {
+//                realm.delete(delTask)
+//            }
+//        }
+//
+//        if task.notificationID != "" {
+//            let notificationService = NotificationService()
+//            notificationService.deleteNotificationRequest(notificationIdentifier: task.notificationID!)
+//        }
+//
+//        self.userSession.tasks[indexPathSectionTask].sectionTasks.remove(at: indexPathRowTask)
+//    }
+    
+    func deleteTask(task: Task) throws {
+        let realm = try Realm()
+        guard let delTask = realm.objects(TaskRealm.self).filter("id = \(task.id)").first else { return }
+        
+        try realm.write{
+            realm.delete(delTask)
+        }
+        
+    }
+
+    // на входе String с именем удалаяемой категории
+    func deleteSection(delSectionName: String) throws {
+
+        // TODO: сделать каскадное удаление в Realm (в официале не реализовано, есть рабочий кусок по ссылке)
+        // https://gist.github.com/verebes1/02950e46fff91456f2ad359b3f3ec3d9
+        let realm = try Realm()
+        let delSection = realm.objects(SectionTaskRealm.self).filter("sectionName = '\(delSectionName)'").first
+        print("delSection_______=\(String(describing: delSection))")
+        try realm.write{
+            if let realmDelSection = delSection {
+                realm.delete(realmDelSection)
+            }
+        }
+        for sectionIndex in 0..<self.userSession.tasks.count {
+            if userSession.tasks[sectionIndex].sectionName.contains(delSectionName) {
+                self.userSession.tasks.remove(at: sectionIndex)
+                break
+            }
+        }
+        
+    }
+    
+    func deleteAllData() throws {
+        let realm = try Realm()
+        try realm.write{
+            realm.deleteAll()
+        }
     }
 }

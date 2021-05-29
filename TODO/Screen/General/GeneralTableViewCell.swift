@@ -10,8 +10,26 @@ import UIKit
 
 class GeneralTableViewCell: UITableViewCell {
     
-    @IBOutlet weak var tasksIconImageView: UIImageView!
-    @IBOutlet weak var tasksNameLabel: UILabel!
+    @IBOutlet weak var taskNameLabel: UILabel!
+    @IBOutlet weak var descriptionLabel: UILabel!
+    @IBOutlet weak var notificationLabel: UILabel!
+    @IBOutlet weak var checkProgressBar: UIProgressView!
     
+    var styleEditing = true
     
+    public func configure(theme: String) {
+        switch theme {
+        case "1":
+            notificationLabel.textColor = .systemYellow
+            checkProgressBar.tintColor = .systemYellow
+        case "2":
+            notificationLabel.textColor = .alexeyBackground
+            checkProgressBar.tintColor = .alexeyBackground
+        case "3":
+            notificationLabel.textColor = .red
+            checkProgressBar.tintColor = .alexDarkRed
+        default:
+            break
+        }
+    }
 }

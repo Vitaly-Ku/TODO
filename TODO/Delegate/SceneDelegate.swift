@@ -14,10 +14,29 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
-        // Use this method to optionally configure and attach the UIWindow `window` to the provided UIWindowScene `scene`.
-        // If using a storyboard, the `window` property will automatically be initialized and attached to the scene.
-        // This delegate does not imply the connecting scene or session are new (see `application:configurationForConnectingSceneSession` instead).
-        guard let _ = (scene as? UIWindowScene) else { return }
+        
+        guard let windowScene = (scene as? UIWindowScene) else { return }
+        
+        let mainViewContoller = UIStoryboard(name: "Main", bundle: nil).instantiateViewController(identifier: "GeneralTableViewController") as! GeneralTableViewController
+        
+        let baseRouter = BaseRouter(viewController: mainViewContoller)
+        mainViewContoller.router = baseRouter
+        
+        let navigationController = CustomNavigationController(rootViewController: mainViewContoller)
+        
+        window = UIWindow(windowScene: windowScene)
+        window?.rootViewController = navigationController
+        window?.makeKeyAndVisible()
+        switch Main.instance.state {
+        case "1":
+            window!.applyGradient(colours: [.vitDarkBrown, .vitBackground], startX: 0.5, startY: -1.2, endX: 0.5, endY: 0.7)
+        case "2":
+            window!.applyGradient(colours: [.alexeyFog, .vitBackground], startX: 0.5, startY: -1.2, endX: 0.5, endY: 0.7)
+        case "3":
+            window!.applyGradient(colours: [.alexRed, .vitBackground], startX: 0.5, startY: -1.2, endX: 0.5, endY: 0.7)
+        default:
+            break
+        }
     }
 
     func sceneDidDisconnect(_ scene: UIScene) {
@@ -51,3 +70,20 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 }
 
+//func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+//
+//    guard let windowScene = (scene as? UIWindowScene) else { return }
+//
+////        let mainViewContoller = UIStoryboard(name: "Main", bundle: nil).instantiateViewController(identifier: "GeneralTableViewController") as! GeneralTableViewController
+//
+//    let containerVC = ContainerViewController()
+//
+//    let baseRouter = BaseRouter(viewController: containerVC)
+//    containerVC.router = baseRouter
+//
+////        let navigationController = UINavigationController(rootViewController: containerVC)
+//
+//    window = UIWindow(windowScene: windowScene)
+//    window?.rootViewController = containerVC
+//    window?.makeKeyAndVisible()
+//}
