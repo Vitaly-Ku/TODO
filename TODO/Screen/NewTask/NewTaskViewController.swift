@@ -34,9 +34,6 @@ class NewTaskViewController: UIViewController, UIPickerViewDataSource, UIPickerV
     @IBOutlet weak var mapWidthConstraint: NSLayoutConstraint!
     @IBOutlet weak var substituteCategoryTextField: UITextField! {didSet{
         substituteCategoryTextField.inputAccessoryView = makeToolBarCategory()}}
-    @IBOutlet weak var cloudsImageView: UIImageView!
-    @IBOutlet weak var cloudsWidthConstraint: NSLayoutConstraint!
-    @IBOutlet weak var cloudsHeightConstraint: NSLayoutConstraint!
     @IBOutlet weak var boatWidthConstraint: NSLayoutConstraint!
     @IBOutlet weak var boatHeightConstraint: NSLayoutConstraint!
     @IBOutlet weak var stackBottomConstraint: NSLayoutConstraint!
@@ -53,9 +50,9 @@ class NewTaskViewController: UIViewController, UIPickerViewDataSource, UIPickerV
     var router: BaseRouter?
     let categoryPicker = UIPickerView()
     let notificationPicker = UIDatePicker()
-    let dateFormatter = DateFormatter()
+    let dateFormatter = Main.instance.dateFormatter
     var calendar = Calendar.current
-    let notificationService = NotificationService()
+    let notificationService = Main.instance.notificationService
     var selectedBackgroundColor: UIColor? = UIColor.clear
     let minDate = Calendar.current.date(byAdding: .minute, value: 2, to: Date())
     var isKeyboard = false
@@ -69,16 +66,11 @@ class NewTaskViewController: UIViewController, UIPickerViewDataSource, UIPickerV
         try? Main.instance.deleteSection(delSectionName: "")
         boatImageView.isHidden = true
         setViewScreen()
-        if Main.instance.isCloudsHidden! {
-            cloudsImageView.isHidden = true
-        } else { cloudsImageView.isHidden = false }
-        changeState(state: Main.instance.state ?? "1")
+//        changeState(state: Main.instance.state ?? "1")
         ParalaxEffect.paralaxEffect(view: mapImageView, magnitude: 50)
         ParalaxEffect.paralaxEffect(view: boatImageView, magnitude: 50)
         categoryPicker.delegate = self
         categoryPicker.selectedRow(inComponent: 0)
-        dateFormatter.timeZone = .autoupdatingCurrent
-        dateFormatter.dateFormat = "dd.MM.yyyy, HH:mm"
         calendar.timeZone = .autoupdatingCurrent
         router = BaseRouter(viewController: self)
         sections = try? Main.instance.getSectionsFromRealm()
@@ -90,10 +82,11 @@ class NewTaskViewController: UIViewController, UIPickerViewDataSource, UIPickerV
     }
     
     override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        UIView.animate(withDuration: 180, delay: 0, options: [.curveLinear, .autoreverse, .repeat], animations: {
-            self.cloudsImageView.frame = .init(x: 0, y: 0, width: self.view.frame.width, height: self.view.frame.width)
-        }, completion: nil)
+        changeTheme()
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        view.dismissKeyboard()
     }
     
     // MARK: - ACTIONS
@@ -215,8 +208,6 @@ class NewTaskViewController: UIViewController, UIPickerViewDataSource, UIPickerV
             }
         }
         notificationTextField?.text = dateFormatter.string(from: notificationPicker.date)
-        Main.instance.notificationDate = dateFormatter.date(from: notificationTextField?.text ?? "")?.localString()
-        print(Main.instance.notificationDate ?? "синглтон с датой тип строка", "🍏" )
         self.dismissKeyboard()
     }
     
@@ -280,75 +271,27 @@ class NewTaskViewController: UIViewController, UIPickerViewDataSource, UIPickerV
         print(categoryPicker.selectedRow(inComponent: 0))
     }
     
-    //MARK: - CHANGE STATE SETTINGS
-    func changeState(state: String) {
-        self.currentTheme = state
-        switch Main.instance.state {
-        case "1":
-            mapImageView.isHidden = true
-            boatImageView.isHidden = true
-            newSectionTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Секция", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.systemYellow]))
-            newSectionTextField.textColor = .systemYellow
-            substituteCategoryTextField.textColor = .yellow
-            newTaskNameTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Название", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.systemYellow]))
-            newTaskNameTextField.textColor = .systemYellow
-            descriptionTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Описание", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.systemYellow]))
-            descriptionTextField.textColor = .systemYellow
-            notificationTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Напоминание", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.systemYellow]))
-            notificationTextField.textColor = .systemYellow
-            coverButton.setTitleColor(.systemYellow, for: .normal)
-            coverButton.setTitleColor(.systemYellow, for: .highlighted)
-            checkListButton.setTitleColor(.systemYellow, for: .normal)
-            checkListButton.setTitleColor(.systemYellow, for: .highlighted)
-            createButton.setTitleColor(.systemYellow, for: .normal)
-            createButton.setTitleColor(.systemYellow, for: .highlighted)
-            navigationController?.navigationBar.barTintColor = .vitDarkBrown
-//            view.applyGradient(colours: [.vitDarkBrown, .vitBackground], startX: 0.5, startY: -1.2, endX: 0.5, endY: 0.7)
-        case "2":
-            mapImageView.isHidden = true
-            boatImageView.isHidden = true
-            newSectionTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Секция", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.alexeyBackground]))
-            newSectionTextField.textColor = .alexeyBackground
-            substituteCategoryTextField.textColor = .alexeyBackground
-            newTaskNameTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Название", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.alexeyBackground]))
-            newTaskNameTextField.textColor = .alexeyBackground
-            descriptionTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Описание", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.alexeyBackground]))
-            descriptionTextField.textColor = .alexeyBackground
-            notificationTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Напоминание", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.alexeyBackground]))
-            notificationTextField.textColor = .alexeyBackground
-            coverButton.setTitleColor(.alexeyBackground, for: .normal)
-            coverButton.setTitleColor(.alexeyBackground, for: .highlighted)
-            checkListButton.setTitleColor(.alexeyBackground, for: .normal)
-            checkListButton.setTitleColor(.alexeyBackground, for: .highlighted)
-            createButton.setTitleColor(.alexeyBackground, for: .normal)
-            createButton.setTitleColor(.alexeyBackground, for: .highlighted)
-            navigationController?.navigationBar.barTintColor = .alexeyFog
-//            view.applyGradient(colours: [.alexeyFog, .vitBackground], startX: 0.5, startY: -1.2, endX: 0.5, endY: 0.7)
-        case "3":
-            boatImageView.isHidden = true
-            mapImageView.isHidden = true
-            newSectionTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Секция", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.cyan]))
-            newSectionTextField.textColor = .cyan
-            substituteCategoryTextField.textColor = .cyan
-            newTaskNameTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Название", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.cyan]))
-            newTaskNameTextField.textColor = .cyan
-            descriptionTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Описание", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.cyan]))
-            descriptionTextField.textColor = .cyan
-            notificationTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Напоминание", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: UIColor.cyan]))
-            notificationTextField.textColor = .cyan
-            coverButton.setTitleColor(.cyan, for: .normal)
-            coverButton.setTitleColor(.cyan, for: .highlighted)
-            checkListButton.setTitleColor(.cyan, for: .normal)
-            checkListButton.setTitleColor(.cyan, for: .highlighted)
-            createButton.setTitleColor(.cyan, for: .normal)
-            createButton.setTitleColor(.cyan, for: .highlighted)
-            navigationController?.navigationBar.barTintColor = .alexDark
-//            view.applyGradient(colours: [.alexDarkRed, .vitBackground], startX: 0.5, startY: -1.2, endX: 0.5, endY: 0.7)
-        case "4":
-            break
-        default:
-            break
-        }
+    //MARK: - CHANGE THEME
+    func changeTheme() {
+        let theme = Main.instance.themeService.getTheme()
+        
+        navigationController?.navigationBar.barTintColor = theme.backgroundColor
+        navigationController?.navigationBar.tintColor = theme.interfaceColor
+        newSectionTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Секция", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: theme.interfaceColor]))
+        newSectionTextField.textColor = theme.interfaceColor
+        substituteCategoryTextField.textColor = theme.interfaceColor
+        newTaskNameTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Название", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: theme.interfaceColor]))
+        newTaskNameTextField.textColor = theme.interfaceColor
+        descriptionTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Описание", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: theme.interfaceColor]))
+        descriptionTextField.textColor = theme.interfaceColor
+        notificationTextField.attributedPlaceholder = .init(attributedString: NSAttributedString(string: "Напоминание", attributes: [NSAttributedString.Key.font:UIFont.boldSystemFont(ofSize: 18), NSAttributedString.Key.foregroundColor: theme.interfaceColor]))
+        notificationTextField.textColor = theme.interfaceColor
+        coverButton.setTitleColor(theme.interfaceColor, for: .normal)
+        coverButton.setTitleColor(theme.interfaceColor, for: .highlighted)
+        checkListButton.setTitleColor(theme.interfaceColor, for: .normal)
+        checkListButton.setTitleColor(theme.interfaceColor, for: .highlighted)
+        createButton.setTitleColor(theme.interfaceColor, for: .normal)
+        createButton.setTitleColor(theme.interfaceColor, for: .highlighted)
     }
     
     // MARK: - SET VIEW SCREEN
@@ -359,13 +302,9 @@ class NewTaskViewController: UIViewController, UIPickerViewDataSource, UIPickerV
         blurView.layer.borderWidth = 1
         blurView.layer.borderColor = UIColor.darkGray.cgColor
         
-        navigationController?.navigationBar.barTintColor = .vitDarkBrown
         createButton.setTitle("Создать", for: .normal)
         mapWidthConstraint.constant = view.frame.width*3.2
         mapHeightConstraint.constant = view.frame.width*1.6
-        self.cloudsImageView.frame = .init(x: -view.frame.width*4, y: 40, width: view.frame.width*2, height: view.frame.width)
-        cloudsWidthConstraint.constant = view.frame.width*5.0
-        cloudsHeightConstraint.constant = view.frame.width*1.6
         boatWidthConstraint.constant = view.frame.width*1.8
         boatHeightConstraint.constant = view.frame.width*1.8
         stackBottomConstraint.constant = view.frame.height/4
@@ -389,7 +328,7 @@ class NewTaskViewController: UIViewController, UIPickerViewDataSource, UIPickerV
         checkBlurView.layer.borderWidth = 3
         checkBlurView.layer.borderColor = UIColor.darkGray.cgColor
         
-        checkPlusButton.backgroundColor = .vitBackground
+        checkPlusButton.backgroundColor = .mainBackground
         checkPlusButton.layer.cornerRadius = 15
         checkPlusButton.layer.borderWidth = 2
         checkPlusButton.layer.borderColor = UIColor.darkGray.cgColor
